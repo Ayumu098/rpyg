@@ -49,7 +49,6 @@ jobs:
       - name: Check typing
         run: uv run mypy
 
-
       - name: Upload coverage reports to Codecov with GitHub Action on Python 3.11
         uses: codecov/codecov-action@v4
         if: ${{ matrix.python-version == '3.11' }}
@@ -67,3 +66,36 @@ jobs:
 
       - name: Check if documentation can be built
         run: uv run mkdocs build -s
+
+  version-bump:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [quality, tests-and-type-check, check-docs]  # Waits for other jobs to pass
+    permissions:
+      contents: write  # Required to push version bump and tags
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Commitizen
+        run: pip install commitizen
+
+      - name: Bump version and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cz bump --yes --changelog
+          git push
+          git push --tags
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(cz version)
+          gh release create "v$version" --generate-notes --title "v$version"
